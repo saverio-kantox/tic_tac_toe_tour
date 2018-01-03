@@ -1,90 +1,102 @@
+require Integer
+
 defmodule TicTacToeTour.Board do
   @moduledoc """
   The board definition.
   """
 
-  alias TicTacToeTour.Board
+  alias TicTacToeTour.{Board, Utils}
 
   use Tensor
 
   @type t :: %__MODULE__{}
 
-  @fields chips: %{o: "○", x: "×", new: "✓", empty: " "}, # to be used later in inspect
-          board: Matrix.new([[" "]], 1, 1)
+  @default_chips %{o: "○", x: "×", new: "✓", empty: " "}
 
-  def fields, do: @fields
-  defstruct @fields
+  defstruct list: [],
+            chips: @default_chips,
+            status: :ok
 
   #############################################################################
 
-  @spec move!(t, {integer(), integer()}) :: t
-  def move!(%__MODULE__{chips: chips} = board, {x, y}) do
-    board =
-      board
-      |> extend_x(x)
-      |> extend_y(y)
-    put_in(board.board[Enum.max([0, y])][Enum.max([0, x])], chips.new)
+  @spec as_list(t) :: list
+  @doc """
+  Return the board a list of moves, normalized so the board starts at (0, 0)
+  """
+  def as_list(%Board{} = board), do: Utils.normalize(board).list
+
+  @spec as_matrix(t) :: Matrix
+  @doc """
+  Return the board as a Tensor.Matrix. Uses the given chips to fill it.
+  """
+  def as_matrix(%Board{} = board) do
+    board
+    |> as_sparse_map
+    |> as_matrix(board.chips)
   end
 
-  @spec extension(t, integer(), :height | :width) :: [%Tensor{}]
-  defp extension(board, num, dimension) do
-    board.chips.empty
-    |> List.duplicate(apply(Matrix, dimension, [board.board]))
-    |> Vector.new()
-    |> List.duplicate(num)
+  def as_matrix(map, %{empty: default}) when map == %{}, do: Matrix.new([[default]], 1)
+  def as_matrix(%{} = map, %{empty: default}) do
+    [max_x, max_y] =
+      map
+      |> Map.keys()
+      |> Enum.zip()
+      |> Enum.map(&Tuple.to_list/1)
+      |> Enum.map(&Enum.max/1)
+    Matrix.from_sparse_map(map, max_x + 1, max_y + 1, default)
   end
 
-  @spec from_columns([%Tensor{}]) :: %Tensor{}
-  defp from_columns(columns) do
-    columns
-    |> Matrix.from_rows() # WTF there is no from_columns?!
-    |> Matrix.transpose()
-  end
-
-  @spec extend_x(t, integer()) :: %Tensor{}
-  defp extend_x(board, x) do
-    result =
-      case {x, Matrix.width(board.board) - x - 1} do
-        {x, _} when x < 0 ->
-          from_columns(extension(board, abs(x), :height) ++ Matrix.columns(board.board))
-        {_, x} when x < 0 ->
-          from_columns(Matrix.columns(board.board) ++ extension(board, abs(x), :height))
-        _ ->
-        board.board
-      end
-    %__MODULE__{board | board: result}
-  end
-
-  @spec from_rows([%Tensor{}]) :: %Tensor{}
-  defp from_rows(rows), do: Matrix.from_rows(rows)
-
-  @spec extend_y(t, integer()) :: %Tensor{}
-  defp extend_y(board, y) do
-    result =
-      case {y, Matrix.height(board.board) - y - 1} do
-        {y, _} when y < 0 ->
-          from_rows(extension(board, abs(y), :width) ++ Matrix.rows(board.board))
-        {_, y} when y < 0 ->
-          from_rows(Matrix.rows(board.board) ++ extension(board, abs(y), :width))
-        _ ->
-        board.board
-      end
-    %__MODULE__{board | board: result}
+  defp as_sparse_map(%Board{chips: %{x: x, o: o}} = board) do
+    board
+    |> as_list
+    |> :lists.reverse()
+    |> Enum.map(&Tuple.to_list/1)
+    |> Enum.zip(Stream.cycle([x, o]))
+    |> Map.new()
   end
 
   #############################################################################
 
   defimpl String.Chars, for: Board do
-    def to_string(%Board{board: board}) do
-      Kernel.to_string(board)
+    def to_string(%Board{} = board) do
+      board
+      |> Board.as_matrix()
+      |> pretty_print_matrix
+    end
+
+    defp pretty_print_matrix(%Tensor{} = matrix, with_spaces \\ true) do
+      width =
+        if with_spaces,
+          do: Matrix.width(matrix) * 2 - 1,
+          else: Matrix.width(matrix)
+
+      [border, spacer] = Enum.map(["═", " "], &String.duplicate(&1, width))
+      separator = if with_spaces, do: " ", else: ""
+
+      [
+        "╔═#{border}═╗",
+        "║ #{spacer} ║",
+        matrix |> Matrix.rows() |> Enum.map(&(&1 |> Vector.to_list() |> Enum.join(separator)))
+        |> Enum.map(&"║ #{&1} ║"),
+        "║ #{spacer} ║",
+        "╚═#{border}═╝"
+      ]
+      |> List.flatten()
+      |> Enum.join("\n")
     end
   end
 
   defimpl Inspect, for: Board do
     import Inspect.Algebra
 
-    def inspect(%Board{board: board, chips: _chips}, opts) do
-      concat ["#Board<", to_doc([board: board], opts)]
+    def inspect(%Board{} = board, opts) do
+      concat([
+        "#Board<",
+        to_doc(
+          [board: Board.as_matrix(board), status: board.status, last_turn: Utils.last_turn(board)],
+          opts
+        )
+      ])
     end
   end
 end

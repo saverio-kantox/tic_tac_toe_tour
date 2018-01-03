@@ -4,8 +4,8 @@ defmodule TicTacToeTour.Player do
   """
 
   @doc "Performs a move"
-  @callback move!(TicTacToeTour.Board.t) :: TicTacToeTour.Board.t
+  @callback move!(TicTacToeTour.Board.t()) :: {integer, integer}
 
   @doc "Returns a name to represent this player in the tournament"
-  @callback name() :: String.t
+  @callback name() :: String.t()
 end

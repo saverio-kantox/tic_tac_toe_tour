@@ -5,7 +5,7 @@ defmodule TicTacToeTour.MixProject do
     [
       app: :tic_tac_toe_tour,
       version: "0.1.0",
-      elixir: "~> 1.6",
+      elixir: "~> 1.6.0-rc",
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
