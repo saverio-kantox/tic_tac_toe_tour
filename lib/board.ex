@@ -75,10 +75,10 @@ defmodule TicTacToeTour.Board do
 
       [
         "╔═#{border}═╗",
-        "║ #{spacer} ║",
+        # "║ #{spacer} ║",
         matrix |> Matrix.rows() |> Enum.map(&(&1 |> Vector.to_list() |> Enum.join(separator)))
         |> Enum.map(&"║ #{&1} ║"),
-        "║ #{spacer} ║",
+        # "║ #{spacer} ║",
         "╚═#{border}═╝"
       ]
       |> List.flatten()
